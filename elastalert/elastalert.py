@@ -962,9 +962,15 @@ class ElastAlerter(object):
             query_key_value = self.get_query_key_value(rule, match)
             if query_key_value is not None:
                 silence_cache_key += '.' + query_key_value
-
-            if self.is_silenced(rule['name'] + "._silence") or self.is_silenced(silence_cache_key):
+            if rule['realert'] and self.is_silenced(silence_cache_key):
+              elastalert_logger.info('Ignoring match for silenced rule %s' % (silence_cache_key,))
+              continue
+            if self.args.silence:
+              if self.args.silence_qk_value and self.is_silenced(silence_cache_key):
                 elastalert_logger.info('Ignoring match for silenced rule %s' % (silence_cache_key,))
+                continue
+              elif self.is_silenced(rule['name'] + "._silence"):
+                elastalert_logger.info('Ignoring match for silenced rule %s' % (rule['name'] + "._silence",))
                 continue
 
             if rule['realert']:
@@ -1958,6 +1964,8 @@ class ElastAlerter(object):
             elastalert_logger.error('Failed to save silence command to Elasticsearch')
             exit(1)
 
+        """ add silence_cache_key to silence_cache to avoid query es multiple times for check silence flag"""
+        self.silence_cache[silence_cache_key] = (ts_to_dt(silence_ts),0)
         elastalert_logger.info('Success. %s will be silenced until %s' % (silence_cache_key, silence_ts))
 
     def set_realert(self, silence_cache_key, timestamp, exponent):
